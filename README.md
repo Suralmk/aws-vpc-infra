@@ -12,36 +12,7 @@ This repository provisions a complete network foundation on AWS: three isolated 
 
 ## Architecture
 
-```
-Internet
-    │
-Internet Gateway
-    │
-┌───┴────────────────────────────────────────────┐
-│  VPC  10.0.0.0/16                              │
-│                                                │
-│  ┌─────────────────────────────────────────┐  │
-│  │  Public tier                            │  │
-│  │  Bastion EC2 │ NAT Gateway │ ALB        │  │
-│  │  10.0.1.0/24 (AZ-A)                    │  │
-│  │  10.0.2.0/24 (AZ-B)                    │  │
-│  └──────────────┬──────────────────────────┘  │
-│                 │ (outbound via NAT)           │
-│  ┌──────────────┴──────────────────────────┐  │
-│  │  Private app tier                       │  │
-│  │  ECS / EC2 workloads                    │  │
-│  │  10.0.10.0/24 (AZ-A)                   │  │
-│  │  10.0.11.0/24 (AZ-B)                   │  │
-│  └──────────────┬──────────────────────────┘  │
-│                 │                             │
-│  ┌──────────────┴──────────────────────────┐  │
-│  │  Private data tier                      │  │
-│  │  RDS PostgreSQL Multi-AZ                │  │
-│  │  10.0.20.0/24 (AZ-A) primary           │  │
-│  │  10.0.21.0/24 (AZ-B) standby           │  │
-│  └─────────────────────────────────────────┘  │
-└────────────────────────────────────────────────┘
-```
+![VPC architecture diagram](asset/vpc_architecture_diagram.svg)
 
 ---
 
