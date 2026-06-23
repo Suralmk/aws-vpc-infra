@@ -1,0 +1,17 @@
+.git
+.github
+.terraform
+terraform
+venv
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+outputs.txt
+README.md
+cdk.out
+node_modules
