@@ -1,0 +1,49 @@
+name: CD — Terraform Apply
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_VAR_environment: ${{ vars.ENVIRONMENT || 'production' }}
+  TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  terraform-apply:
+    name: Terraform apply
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform apply
+        env:
+          TF_VAR_db_password: ${{ secrets.TF_VAR_db_password }}
+          TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
+          TF_VAR_bastion_allowed_cidr: ${{ vars.BASTION_ALLOWED_CIDR }}
+        run: terraform apply -input=false -auto-approve
+
+      - name: Print outputs
+        run: terraform output
