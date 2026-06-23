@@ -1,12 +1,12 @@
 # aws-vpc-infra
 
-Infrastructure-as-code repository to provision a production-grade, three-tier AWS VPC with a private RDS, a bastion host, and an example FastAPI backend. This repo includes reusable Terraform modules, an AWS CDK reference, and Docker-based local run instructions to help you iterate quickly.
+Infrastructure-as-code repository to provision a production-grade, three-tier AWS VPC with a private RDS, a bastion host, and an example FastAPI backend. This repo includes Terraform configuration, Docker-based local run instructions, and a Makefile to help you iterate quickly.
 
 ---
 
 ## Overview
 
-This repository provisions a complete network foundation on AWS: three isolated subnet tiers across two availability zones, a private PostgreSQL database with no public endpoint, and a bastion host as the only entry point into the private network. Infrastructure is codified primarily with Terraform (reusable modules live under `terraform/modules/`), an AWS CDK reference exists in `cdk/`, and a small FastAPI app in `app/` demonstrates how the backend connects to the database. Use `docker-compose` for quick local testing and Terraform for cloud deployment.
+This repository provisions a complete network foundation on AWS: three isolated subnet tiers across two availability zones, a private PostgreSQL database with no public endpoint, and a bastion host as the only entry point into the private network. Infrastructure is codified in Terraform under `terraform/`, and a small FastAPI app in `app/` demonstrates how the backend connects to the database. Use `docker-compose` for quick local testing and Terraform for cloud deployment.
 
 ---
 
@@ -35,8 +35,8 @@ This repository provisions a complete network foundation on AWS: three isolated 
 - Security groups (chained: ALB → app → RDS)
 - RDS PostgreSQL (Multi-AZ, encrypted at rest, no public endpoint)
 - EC2 bastion host with EC2 Instance Connect
-- VPC Flow Logs → CloudWatch Logs
-- SSM Parameter Store for secrets
+- Secrets Manager for DB credentials (via VPC endpoint + IAM role)
+- VPC interface endpoints for Secrets Manager and CloudWatch Logs
 
 ---
 
@@ -56,30 +56,51 @@ This repository provisions a complete network foundation on AWS: three isolated 
 ```
 aws-vpc-infra/
 ├── terraform/
-│   ├── modules/
-│   │   └── vpc/
-│   │       ├── main.tf
-│   │       ├── variables.tf
-│   │       └── outputs.tf
-│   ├── envs/
-│   │   └── dev/
-│   │       ├── main.tf
-│   │       └── terraform.tfvars
-│   └── backend.tf
-├── cdk/
-│   ├── app.py
-│   └── stacks/
-│       └── vpc_stack.py
+│   ├── provider.tf
+│   ├── data.tf
+│   ├── vpc.tf
+│   ├── security_groups.tf
+│   ├── iam.tf
+│   ├── ec2.tf
+│   ├── alb.tf
+│   ├── rds.tf
+│   ├── vpc_endpoints.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars.example
 ├── app/
 │   ├── main.py
 │   ├── database.py
 │   ├── config.py
-│   └── alembic/
-├── .github/
-│   └── workflows/
-│       └── terraform.yml
+│   └── health.py
+├── docker-compose.yml
+├── Dockerfile
+├── Makefile
 └── README.md
 ```
+
+---
+
+## Terraform Files
+
+Infrastructure is split into focused files so each layer of the stack is easy to find and read. Terraform loads every `.tf` file in the `terraform/` directory as a single configuration.
+
+| File | What it does |
+| ---- | ------------ |
+| `provider.tf` | Configures the AWS provider (region and credentials profile). |
+| `data.tf` | Looks up the latest Ubuntu 20.04 AMI and creates the SSH key pair used by EC2 instances. |
+| `vpc.tf` | Provisions the VPC module — public, private app, and database subnets across two AZs, plus a NAT gateway and DB subnet group. |
+| `security_groups.tf` | Defines firewall rules for the ALB (HTTP/HTTPS from internet), app EC2 (port 8000 from ALB only), RDS (Postgres from EC2 and bastion), bastion (SSH from your IP), and VPC endpoints (HTTPS from private subnets). |
+| `iam.tf` | Creates an IAM role and instance profile for the backend EC2 so it can read DB credentials from Secrets Manager and send logs to CloudWatch. |
+| `ec2.tf` | Launches the bastion host (public subnet, Postgres client installed) and the backend app instance (private subnet, Docker installed, IAM profile attached). |
+| `alb.tf` | Creates the Application Load Balancer in public subnets, a target group with `/health` checks on port 8000, an HTTP listener, and attaches the backend EC2 to the target group. |
+| `rds.tf` | Provisions a private, encrypted PostgreSQL RDS instance in the database subnets — no public access. |
+| `vpc_endpoints.tf` | Adds interface VPC endpoints for Secrets Manager and CloudWatch Logs so private subnets can reach AWS services without going over the public internet. |
+| `variables.tf` | Input variables: `region`, `environment`, `db_password`, and `bastion_allowed_cidr`. |
+| `outputs.tf` | Prints useful values after apply: VPC ID, ALB DNS, bastion IP, RDS endpoint, backend private IP, SSH/psql commands, and the EC2 instance profile name. |
+| `terraform.tfvars.example` | Example variable values — copy to `terraform.tfvars` and fill in your password and IP before running `terraform apply`. |
+
+**Traffic flow:** Internet → ALB (public subnet) → backend EC2 (private subnet) → RDS (database subnet). The bastion is the only SSH entry point into the VPC.
 
 ---
 
@@ -111,7 +132,8 @@ aws dynamodb create-table \
 ### 2. Provision the VPC
 
 ```bash
-cd terraform/envs/dev
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # edit db_password and bastion_allowed_cidr
 terraform init
 terraform plan
 terraform apply
@@ -187,7 +209,7 @@ terraform apply
 ## Teardown
 
 ```bash
-cd terraform/envs/dev
+cd terraform
 terraform destroy
 ```
 
