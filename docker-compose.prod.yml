@@ -1,0 +1,18 @@
+# Production compose for the backend EC2 instance.
+# RDS is external (Terraform); credentials come from Secrets Manager at runtime.
+services:
+  api:
+    image: ${ECR_IMAGE:?Set ECR_IMAGE to your ECR image URI}
+    container_name: aws-vpc-infra-api
+    ports:
+      - "8000:8000"
+    environment:
+      ENV: production
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      SECRET_NAME: ${SECRET_NAME:?Set SECRET_NAME from terraform output db_secret_name}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
