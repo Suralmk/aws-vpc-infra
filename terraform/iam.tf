@@ -10,12 +10,13 @@ resource "aws_iam_role" "ec2_role" {
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
+      # Use instance tag — NOT instance ARN (referencing backend_app.arn causes a Terraform cycle)
       Condition = {
-        ArnEquals = {
-          "aws:SourceInstanceArn" = aws_instance.backend_app.arn
+        StringEquals = {
+          "ec2:ResourceTag/RoleAccess" = "backend-app"
         }
       }
-    }]  
+    }]
   })
 }
 

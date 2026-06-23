@@ -8,7 +8,7 @@ resource "aws_db_instance" "app_db" {
   db_name                = "appdb"
   username               = "postgres"
   password               = var.db_password
-  db_subnet_group_name   = module.vpc.db_subnet_group_name
+  db_subnet_group_name   = module.vpc.database_subnet_group_name
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
 
   publicly_accessible = false
