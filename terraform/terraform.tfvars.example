@@ -1,4 +1,6 @@
 # terraform.tfvars.example
+# Copy to terraform.tfvars (gitignored) and fill in every value.
+# See README.md "Step-by-step guide" for SSH key generation and bastion access.
 
 region = "us-east-1"
 
@@ -6,7 +8,8 @@ environment = "dev"
 
 db_password = "CHANGE_ME"
 
+# Your public IP — run: curl ifconfig.me  then append /32
 bastion_allowed_cidr = "YOUR_IP/32"
 
-# Paste output of: cat ~/.ssh/deployer-key.pub  (single line)
-public_key = "ssh-ed25519 AAAA... your-email@example.com"
+# Paste full output of: cat ~/.ssh/deployer-key.pub  (single line, in quotes)
+public_key = "ssh-rsa AAAA... your-email@example.com"
