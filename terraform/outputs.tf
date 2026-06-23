@@ -40,5 +40,11 @@ output "ec2_instance_profile_name" {
 }
 
 output "db_secret_name" {
-  value = aws_secretsmanager_secret.db_credentials.name
+  description = "Secrets Manager name — set as SECRET_NAME env var on the backend app"
+  value       = aws_secretsmanager_secret.db_credentials.name
+}
+
+output "db_secret_arn" {
+  description = "Secrets Manager ARN — use in IAM policies"
+  value       = aws_secretsmanager_secret.db_credentials.arn
 }

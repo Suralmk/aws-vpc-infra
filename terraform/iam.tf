@@ -10,7 +10,12 @@ resource "aws_iam_role" "ec2_role" {
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
-    }]
+      Condition = {
+        ArnEquals = {
+          "aws:SourceInstanceArn" = aws_instance.backend_app.arn
+        }
+      }
+    }]  
   })
 }
 

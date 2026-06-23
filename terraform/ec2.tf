@@ -57,5 +57,6 @@ resource "aws_instance" "backend_app" {
 
   tags = {
     Name = "${var.environment}-backend-app"
+    RoleAccess  = "backend-app" 
   }
 }
