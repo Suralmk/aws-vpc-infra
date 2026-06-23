@@ -71,3 +71,8 @@ build/
 .mypy_cache/
 .ruff_cache/
 .coverage
+
+# Terraform
+terraform.tfvars
+*.tfvars
+outputs.txt

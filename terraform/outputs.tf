@@ -48,3 +48,13 @@ output "db_secret_arn" {
   description = "Secrets Manager ARN — use in IAM policies"
   value       = aws_secretsmanager_secret.db_credentials.arn
 }
+
+output "ecr_repository_url" {
+  description = "ECR repository URL for the API image"
+  value       = aws_ecr_repository.app.repository_url
+}
+
+output "backend_instance_id" {
+  description = "EC2 instance ID used by GitHub Actions SSM deploy"
+  value       = aws_instance.backend_app.id
+}

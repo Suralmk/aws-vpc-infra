@@ -30,27 +30,37 @@ resource "aws_instance" "backend_app" {
 
   user_data = <<-EOF
     #!/bin/bash
+    set -euo pipefail
     apt-get update -y
+    apt-get install -y postgresql-client curl unzip
+
+    # AWS CLI v2 — used by deploy script for ECR login
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+    unzip -q /tmp/awscliv2.zip -d /tmp
+    /tmp/aws/install
+    rm -rf /tmp/aws /tmp/awscliv2.zip
 
     apt-get install -y \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release \
+      ca-certificates \
+      curl \
+      gnupg \
+      lsb-release
 
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
 
     echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] \
-    https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" \
-    > /etc/apt/sources.list.d/docker.list
-    
+      "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] \
+      https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" \
+      > /etc/apt/sources.list.d/docker.list
+
     apt-get update -y
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
     systemctl enable docker
     systemctl start docker
+
+    mkdir -p /opt/app
   EOF
 
   depends_on = [aws_db_instance.app_db]
