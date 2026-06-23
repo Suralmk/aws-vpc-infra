@@ -65,6 +65,8 @@ aws-vpc-infra/
 │   ├── alb.tf
 │   ├── rds.tf
 │   ├── secrets.tf
+│   ├── ecr.tf
+│   ├── backend.tf
 │   ├── vpc_endpoints.tf
 │   ├── variables.tf
 │   ├── outputs.tf
@@ -74,6 +76,16 @@ aws-vpc-infra/
 │   ├── database.py
 │   ├── config.py
 │   └── health.py
+├── docker-compose.prod.yml
+├── scripts/
+│   └── deploy.sh
+├── docs/
+│   └── github-actions-iam-policy.json
+├── .github/
+│   └── workflows/
+│       ├── pull-request.yml
+│       ├── deploy.yml
+│       └── terraform-apply.yml
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Makefile
@@ -400,20 +412,114 @@ The app and data tiers have no inbound rules from the internet. The only path to
 
 ---
 
-## CI/CD
+## App ↔ Terraform compatibility
 
-On every pull request, GitHub Actions runs:
+| Layer | Local (`docker-compose.yml`) | AWS (`docker-compose.prod.yml` / EC2) |
+| ----- | ---------------------------- | ------------------------------------- |
+| Database | Postgres container on port 5432 | RDS PostgreSQL (private) |
+| Credentials | `DATABASE_URL` env var | `ENV=production` + Secrets Manager (`SECRET_NAME`) |
+| Image | Built from `Dockerfile` | Pulled from **ECR** (`${environment}-aws-vpc-infra-api`) |
+| Port | 8000 | 8000 (ALB forwards HTTP → EC2:8000) |
+| IAM | Not needed | EC2 instance profile reads Secrets Manager + ECR |
 
+Production container env vars (set by `scripts/deploy.sh`):
+
+```env
+ENV=production
+AWS_REGION=us-east-1
+SECRET_NAME=production/db/credentials   # matches terraform output db_secret_name
 ```
-terraform fmt -check
-terraform validate
-terraform plan   ← plan output posted as PR comment
+
+---
+
+## CI/CD (GitHub Actions)
+
+Three workflows live in `.github/workflows/`:
+
+| Workflow | Trigger | What it does |
+| -------- | ------- | ------------ |
+| `pull-request.yml` | Pull request to `main` | Docker build + local compose health test; `terraform fmt`, `validate`, `plan` (comment on PR) |
+| `terraform-apply.yml` | Push to `main` when `terraform/**` changes, or manual | `terraform apply` |
+| `deploy.yml` | Push to `main` (app changes), or manual | Build image → push ECR → deploy to private EC2 via **SSM** → smoke test ALB |
+
+Deploy uses **AWS Systems Manager** (not SSH from GitHub runners), so you do not need to open the bastion to GitHub IP ranges.
+
+### One-time setup before CI/CD
+
+**1. Migrate Terraform state to S3** (required for GitHub Actions to read outputs):
+
+```bash
+cd terraform
+terraform init -migrate-state   # moves local state → S3 backend in backend.tf
+terraform apply                 # creates ECR + SSM permissions if not already applied
 ```
 
-On merge to `main`:
+**2. Create a GitHub Actions IAM user** in AWS account `130063747652`:
 
+- IAM → Users → Create user `github-actions-aws-vpc-infra`
+- Attach policy from `docs/github-actions-iam-policy.json` (or scoped equivalent)
+- Create access key → store in GitHub Secrets
+
+**3. Configure GitHub repository**
+
+Go to **Settings → Secrets and variables → Actions**.
+
+#### Secrets (Settings → Secrets → Actions)
+
+| Secret | Value | Used for |
+| ------ | ----- | -------- |
+| `AWS_ACCESS_KEY_ID` | IAM user access key | All workflows |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key | All workflows |
+| `TF_VAR_db_password` | Same as `db_password` in `terraform.tfvars` | Terraform plan/apply |
+| `TF_VAR_public_key` | Full line from `deployer-key.pub` | Terraform plan/apply |
+
+#### Variables (Settings → Variables → Actions)
+
+| Variable | Example | Used for |
+| -------- | ------- | -------- |
+| `AWS_REGION` | `us-east-1` | Region for all AWS calls |
+| `ENVIRONMENT` | `production` | Must match `environment` in `terraform.tfvars` |
+| `BASTION_ALLOWED_CIDR` | `203.0.113.10/32` | Your IP for bastion SSH (`curl ifconfig.me`/32) |
+
+### Deploy flow (after setup)
+
+1. Push app code to `main` → `deploy.yml` runs:
+   - Reads `ecr_repository_url`, `backend_instance_id`, `db_secret_name` from Terraform state
+   - Builds and pushes `:$GITHUB_SHA` and `:latest` to ECR
+   - Runs `scripts/deploy.sh` on the backend EC2 via SSM
+   - Curls `http://<alb-dns>/health`
+
+2. Change Terraform only → push `terraform/**` → `terraform-apply.yml` runs `terraform apply`
+
+3. Open a PR → `pull-request.yml` validates Docker + posts Terraform plan comment
+
+### Manual deploy (without GitHub)
+
+```bash
+# From repo root — after terraform apply
+AWS_REGION=us-east-1
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/production-aws-vpc-infra-api"
+
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+docker build -t "$ECR_URL:latest" .
+docker push "$ECR_URL:latest"
+
+# On backend EC2 via SSM (from your laptop)
+INSTANCE_ID=$(cd terraform && terraform output -raw backend_instance_id)
+aws ssm send-command \
+  --instance-ids "$INSTANCE_ID" \
+  --document-name AWS-RunShellScript \
+  --parameters commands=["export IMAGE=$ECR_URL:latest AWS_REGION=$AWS_REGION SECRET_NAME=production/db/credentials && curl -fsSL .../deploy.sh | bash"]
 ```
-terraform apply
+
+Or SSH to bastion is **not** required for deploy — SSM reaches the private instance directly.
+
+### Verify production app
+
+```bash
+curl http://$(cd terraform && terraform output -raw Load_Balancer_DNS)/health
+curl http://$(cd terraform && terraform output -raw Load_Balancer_DNS)/db-check
 ```
 
 ---
