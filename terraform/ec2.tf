@@ -66,7 +66,7 @@ resource "aws_instance" "backend_app" {
   depends_on = [aws_db_instance.app_db]
 
   tags = {
-    Name = "${var.environment}-backend-app"
-    RoleAccess  = "backend-app" 
+    Name       = "${var.environment}-backend-app"
+    RoleAccess = "backend-app"
   }
 }

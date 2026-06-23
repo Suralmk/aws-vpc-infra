@@ -1,7 +1,7 @@
 variable "region" {
-    description = "The AWS region we are deploying to"
-    type        = string
-    default     = "us-east-1"
+  description = "The AWS region we are deploying to"
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "environment" {
@@ -12,7 +12,7 @@ variable "environment" {
 
 variable "db_password" {
   type      = string
-  sensitive = true  # hides it from terraform plan/apply output
+  sensitive = true # hides it from terraform plan/apply output
 }
 
 variable "bastion_allowed_cidr" {

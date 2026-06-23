@@ -15,6 +15,11 @@ permissions:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   ENVIRONMENT: ${{ vars.ENVIRONMENT || 'production' }}
+  TF_VAR_environment: ${{ vars.ENVIRONMENT || 'production' }}
+  TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_VAR_db_password: ${{ secrets.TF_VAR_db_password }}
+  TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
+  TF_VAR_bastion_allowed_cidr: ${{ vars.BASTION_ALLOWED_CIDR }}
 
 jobs:
   deploy:
@@ -38,12 +43,6 @@ jobs:
 
       - name: Read infrastructure outputs from remote state
         id: infra
-        env:
-          TF_VAR_db_password: ${{ secrets.TF_VAR_db_password }}
-          TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
-          TF_VAR_bastion_allowed_cidr: ${{ vars.BASTION_ALLOWED_CIDR }}
-          TF_VAR_environment: ${{ env.ENVIRONMENT }}
-          TF_VAR_region: ${{ env.AWS_REGION }}
         run: |
           terraform init -input=false
           echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> "$GITHUB_OUTPUT"
