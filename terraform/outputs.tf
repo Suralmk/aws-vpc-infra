@@ -38,3 +38,7 @@ output "ec2_instance_profile_name" {
   description = "IAM instance profile attached to the backend EC2 for Secrets Manager access"
   value       = aws_iam_instance_profile.ec2_profile.name
 }
+
+output "db_secret_name" {
+  value = aws_secretsmanager_secret.db_credentials.name
+}
