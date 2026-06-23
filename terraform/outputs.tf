@@ -1,11 +1,11 @@
 output "VPC_Id" {
-    description = "ID of the VPC"
-    value       = module.vpc.vpc_id
+  description = "ID of the VPC"
+  value       = module.vpc.vpc_id
 }
 
-output  "Load_Balancer_DNS" {
-    value = aws_lb.app_alb.dns_name
-    description = "Hit this URL in your browser to access the app. Traffic goes: Internet -> ALB (Public) -> EC2 (Private)"
+output "Load_Balancer_DNS" {
+  description = "Hit this URL in your browser to access the app. Traffic goes: Internet -> ALB (Public) -> EC2 (Private)"
+  value       = aws_lb.app_alb.dns_name
 }
 
 output "bastion_public_ip" {
@@ -13,10 +13,11 @@ output "bastion_public_ip" {
   value       = aws_instance.bastion.public_ip
 }
 
-output  "RDS_Endpoint" {
-    value = aws_db_instance.app_db.endpoint
-    description = "Your EC2 connects to this internally. No internet required."
+output "RDS_Endpoint" {
+  description = "Your EC2 connects to this internally. No internet required."
+  value       = aws_db_instance.app_db.endpoint
 }
+
 output "backend_private_ip" {
   description = "Private IP of the app EC2 instance"
   value       = aws_instance.backend_app.private_ip

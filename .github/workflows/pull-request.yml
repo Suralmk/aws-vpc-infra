@@ -1,0 +1,100 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_VAR_environment: ${{ vars.ENVIRONMENT || 'production' }}
+  TF_VAR_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_VAR_db_password: ${{ secrets.TF_VAR_db_password }}
+  TF_VAR_public_key: ${{ secrets.TF_VAR_public_key }}
+  TF_VAR_bastion_allowed_cidr: ${{ vars.BASTION_ALLOWED_CIDR }}
+
+jobs:
+  docker:
+    name: Build API image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t aws-vpc-infra-api:ci .
+
+      - name: Smoke test with docker compose
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=password
+          POSTGRES_DB=appdb
+          POSTGRES_PORT=5432
+          API_PORT=8000
+          DATABASE_URL=postgresql://postgres:password@localhost:5432/appdb
+          EOF
+          docker compose up -d --build
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then
+              echo ""
+              echo "Local health check passed"
+              docker compose down -v
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          docker compose down -v
+          exit 1
+
+  terraform:
+    name: Terraform validate & plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan.txt', 'utf8');
+            const body = `## Terraform Plan\n\`\`\`\n${plan.slice(0, 60000)}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });

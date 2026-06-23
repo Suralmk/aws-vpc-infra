@@ -13,7 +13,7 @@ resource "aws_db_instance" "app_db" {
 
   publicly_accessible = false
   multi_az            = false
-  storage_encrypted = true # This is a free feature and should always be enabled
+  storage_encrypted   = true # This is a free feature and should always be enabled
 
   skip_final_snapshot = true # we doing this for testing
 
