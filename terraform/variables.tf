@@ -19,3 +19,8 @@ variable "bastion_allowed_cidr" {
   description = "Your IP in CIDR format allowed to SSH to bastion — run: curl ifconfig.me"
   type        = string
 }
+
+variable "public_key" {
+  description = "SSH public key for bastion access (contents of deployer-key.pub)"
+  type        = string
+}

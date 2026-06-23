@@ -7,3 +7,6 @@ environment = "dev"
 db_password = "CHANGE_ME"
 
 bastion_allowed_cidr = "YOUR_IP/32"
+
+# Paste output of: cat ~/.ssh/deployer-key.pub  (single line)
+public_key = "ssh-ed25519 AAAA... your-email@example.com"
