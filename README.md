@@ -446,12 +446,29 @@ Deploy uses **AWS Systems Manager** (not SSH from GitHub runners), so you do not
 
 ### One-time setup before CI/CD
 
-**1. Migrate Terraform state to S3** (required for GitHub Actions to read outputs):
+**1. Bootstrap Terraform remote state** (required before GitHub Actions can run `terraform init`):
 
 ```bash
+# From repo root — uses AWS CLI credentials (same account as your infra)
+bash scripts/bootstrap-tf-backend.sh
+
 cd terraform
-terraform init -migrate-state   # moves local state → S3 backend in backend.tf
+terraform init -migrate-state   # moves existing local state → S3 (answer yes)
 terraform apply                 # creates ECR + SSM permissions if not already applied
+```
+
+If you skip this step, PR checks fail with: `S3 bucket "aws-vpc-infra-tfstate" does not exist`.
+
+Manual equivalent:
+
+```bash
+aws s3api create-bucket --bucket aws-vpc-infra-tfstate --region us-east-1
+aws dynamodb create-table \
+  --table-name terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
 ```
 
 **2. Create a GitHub Actions IAM user** in AWS account `130063747652`:
