@@ -1,0 +1,9 @@
+# terraform.tfvars.example
+
+region = "us-east-1"
+
+environment = "dev"
+
+db_password = "CHANGE_ME"
+
+bastion_allowed_cidr = "YOUR_IP/32"
