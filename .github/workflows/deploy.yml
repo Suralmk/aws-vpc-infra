@@ -40,15 +40,12 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8
+          terraform_wrapper: false
 
       - name: Read infrastructure outputs from remote state
         id: infra
-        run: |
-          terraform init -input=false
-          echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> "$GITHUB_OUTPUT"
-          echo "db_secret_name=$(terraform output -raw db_secret_name)" >> "$GITHUB_OUTPUT"
-          echo "backend_instance_id=$(terraform output -raw backend_instance_id)" >> "$GITHUB_OUTPUT"
-          echo "alb_dns=$(terraform output -raw Load_Balancer_DNS)" >> "$GITHUB_OUTPUT"
+        working-directory: .
+        run: bash scripts/read-infra-outputs.sh
 
       - uses: aws-actions/amazon-ecr-login@v2
 
@@ -58,6 +55,11 @@ jobs:
           ECR_REPOSITORY: ${{ steps.infra.outputs.ecr_repository_url }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          set -euo pipefail
+          if [[ ! "$ECR_REPOSITORY" =~ ^[0-9]+\.dkr\.ecr\. ]]; then
+            echo "ERROR: Invalid ECR_REPOSITORY: $ECR_REPOSITORY"
+            exit 1
+          fi
           docker build -t "$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REPOSITORY:latest" .
           docker push "$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$ECR_REPOSITORY:latest"
