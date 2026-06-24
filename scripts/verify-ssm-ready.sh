@@ -6,15 +6,31 @@ INSTANCE_ID="${1:?Usage: verify-ssm-ready.sh <instance-id>}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-300}"
 
-echo "Checking EC2 instance: $INSTANCE_ID"
+echo "Checking EC2 instance: $INSTANCE_ID (region: $AWS_REGION)"
 
 STATE="$(aws ec2 describe-instances \
   --region "$AWS_REGION" \
   --instance-ids "$INSTANCE_ID" \
   --query 'Reservations[0].Instances[0].State.Name' \
-  --output text)"
+  --output text 2>/dev/null || true)"
+
+if [[ -z "$STATE" || "$STATE" == "None" ]]; then
+  echo "ERROR: Instance $INSTANCE_ID not found in region $AWS_REGION."
+  echo "Your infra is in us-east-1. Run: export AWS_REGION=us-east-1"
+  echo "Or: aws configure set region us-east-1"
+  exit 1
+fi
 
 echo "EC2 state: $STATE"
+if [[ "$STATE" == "stopped" ]]; then
+  echo ""
+  echo "Instance is stopped. Either start it:"
+  echo "  aws ec2 start-instances --region $AWS_REGION --instance-ids $INSTANCE_ID"
+  echo ""
+  echo "Or recreate with SSM agent (recommended if never deployed via GitHub):"
+  echo "  cd terraform && terraform apply -replace=aws_instance.backend_app"
+  exit 1
+fi
 if [[ "$STATE" != "running" ]]; then
   echo "ERROR: Instance must be running for SSM deploy (current: $STATE)"
   exit 1

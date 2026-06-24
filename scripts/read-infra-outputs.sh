@@ -34,11 +34,28 @@ fi
 
 if [[ -z "$BACKEND_ID" || "$BACKEND_ID" == "None" ]]; then
   echo "backend_instance_id missing from state — trying AWS CLI..."
+else
+  STATE_OK="$(aws ec2 describe-instances \
+    --region "$AWS_REGION" \
+    --instance-ids "$BACKEND_ID" \
+    --query 'Reservations[0].Instances[0].State.Name' \
+    --output text 2>/dev/null || true)"
+  if [[ "$STATE_OK" != "running" ]]; then
+    echo "WARNING: State instance $BACKEND_ID is not running (status: ${STATE_OK:-not found})."
+    BACKEND_ID=""
+  fi
+fi
+
+if [[ -z "$BACKEND_ID" || "$BACKEND_ID" == "None" ]]; then
   BACKEND_ID="$(aws ec2 describe-instances \
     --region "$AWS_REGION" \
     --filters "Name=tag:Name,Values=${ENVIRONMENT}-backend-app" "Name=instance-state-name,Values=running" \
     --query 'Reservations[0].Instances[0].InstanceId' \
     --output text 2>/dev/null || true)"
+  if [[ -n "$BACKEND_ID" && "$BACKEND_ID" != "None" ]]; then
+    echo "Using running instance from AWS API: $BACKEND_ID"
+    echo "Run: cd terraform && terraform apply  (to sync remote state)"
+  fi
 fi
 
 if [[ -z "$DB_SECRET" ]]; then
