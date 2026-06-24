@@ -60,6 +60,14 @@ resource "aws_instance" "backend_app" {
     systemctl enable docker
     systemctl start docker
 
+    # SSM agent — required for GitHub Actions deploy (aws ssm send-command)
+    mkdir -p /tmp/ssm
+    curl -fsSL "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb" \
+      -o /tmp/ssm/amazon-ssm-agent.deb
+    dpkg -i /tmp/ssm/amazon-ssm-agent.deb
+    systemctl enable amazon-ssm-agent
+    systemctl start amazon-ssm-agent
+
     mkdir -p /opt/app
   EOF
 
