@@ -64,6 +64,12 @@ jobs:
           docker push "$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$ECR_REPOSITORY:latest"
 
+      - name: Verify backend EC2 is ready for SSM
+        working-directory: .
+        env:
+          INSTANCE_ID: ${{ steps.infra.outputs.backend_instance_id }}
+        run: bash scripts/verify-ssm-ready.sh "$INSTANCE_ID"
+
       - name: Deploy to backend EC2 via SSM
         working-directory: .
         env:
