@@ -31,6 +31,27 @@ if [[ "$STATE" == "stopped" ]]; then
   echo "  cd terraform && terraform apply -replace=aws_instance.backend_app"
   exit 1
 fi
+if [[ "$STATE" == "pending" || "$STATE" == "stopping" ]]; then
+  echo "Waiting for instance to reach running (current: $STATE), up to ${MAX_WAIT_SECONDS}s..."
+  DEADLINE=$((SECONDS + MAX_WAIT_SECONDS))
+  while (( SECONDS < DEADLINE )); do
+    STATE="$(aws ec2 describe-instances \
+      --region "$AWS_REGION" \
+      --instance-ids "$INSTANCE_ID" \
+      --query 'Reservations[0].Instances[0].State.Name' \
+      --output text 2>/dev/null || true)"
+    if [[ "$STATE" == "running" ]]; then
+      echo "EC2 state: running"
+      break
+    fi
+    if [[ "$STATE" == "stopped" ]]; then
+      echo "ERROR: Instance stopped while waiting (was $STATE)."
+      exit 1
+    fi
+    echo "EC2 state: $STATE (retrying...)"
+    sleep 15
+  done
+fi
 if [[ "$STATE" != "running" ]]; then
   echo "ERROR: Instance must be running for SSM deploy (current: $STATE)"
   exit 1

@@ -40,10 +40,21 @@ else
     --instance-ids "$BACKEND_ID" \
     --query 'Reservations[0].Instances[0].State.Name' \
     --output text 2>/dev/null || true)"
-  if [[ "$STATE_OK" != "running" ]]; then
-    echo "WARNING: State instance $BACKEND_ID is not running (status: ${STATE_OK:-not found})."
-    BACKEND_ID=""
-  fi
+  case "$STATE_OK" in
+    running|pending|stopping|stopped)
+      if [[ "$STATE_OK" != "running" ]]; then
+        echo "NOTE: State instance $BACKEND_ID is not running yet (status: $STATE_OK)."
+        echo "      Keeping instance id from state — verify-ssm-ready.sh will wait or report."
+      fi
+      ;;
+    terminated|shutting-down|"")
+      echo "WARNING: State instance $BACKEND_ID is gone or terminating (status: ${STATE_OK:-not found})."
+      BACKEND_ID=""
+      ;;
+    *)
+      echo "WARNING: State instance $BACKEND_ID has unexpected status: $STATE_OK"
+      ;;
+  esac
 fi
 
 if [[ -z "$BACKEND_ID" || "$BACKEND_ID" == "None" ]]; then
