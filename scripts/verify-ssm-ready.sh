@@ -67,10 +67,18 @@ done
 
 echo ""
 echo "ERROR: Instance is not registered with SSM."
+echo ""
+echo "Common causes:"
+echo "  - Instance launched before SSM agent was added to user_data (user_data runs only on first boot)"
+echo "  - terraform apply not run after adding SSM VPC endpoints / IAM policy (deploy.yml does not apply Terraform)"
+echo "  - user_data failed before SSM install (check: aws ec2 get-console-output --instance-id $INSTANCE_ID)"
+echo ""
 echo "Fix options:"
-echo "  1) Recreate instance with SSM agent (recommended):"
-echo "       cd terraform && terraform apply -replace=aws_instance.backend_app"
-echo "  2) Or install agent on the running instance (via bastion SSH if configured)"
+echo "  1) Apply latest Terraform, then recreate the backend instance (recommended):"
+echo "       cd terraform && terraform apply"
+echo "       terraform apply -replace=aws_instance.backend_app"
+echo "     Wait 2–5 min, then re-run deploy."
+echo "  2) Or install the agent on the running instance (via bastion SSH if configured)"
 echo ""
 aws ssm describe-instance-information \
   --region "$AWS_REGION" \

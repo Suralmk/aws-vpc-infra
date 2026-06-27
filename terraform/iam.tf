@@ -10,12 +10,8 @@ resource "aws_iam_role" "ec2_role" {
       Action    = "sts:AssumeRole"
       Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
-      # Use instance tag — NOT instance ARN (referencing backend_app.arn causes a Terraform cycle)
-      Condition = {
-        StringEquals = {
-          "ec2:ResourceTag/RoleAccess" = "backend-app"
-        }
-      }
+      # No ec2:ResourceTag condition — it blocks EC2 from delivering instance-profile
+      # credentials (SSM agent never registers). This profile is only attached to backend_app.
     }]
   })
 }

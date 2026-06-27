@@ -30,9 +30,23 @@ resource "aws_instance" "backend_app" {
 
   user_data = <<-EOF
     #!/bin/bash
-    set -euo pipefail
+    exec > /var/log/user-data.log 2>&1
+    set -x
+
+    # SSM agent — Ubuntu 20.04+ EC2 AMIs ship amazon-ssm-agent via snap.
+    # Do NOT install the .deb package; it conflicts with snap and breaks the agent.
     apt-get update -y
-    apt-get install -y postgresql-client curl unzip
+    apt-get install -y snapd curl
+    if snap list amazon-ssm-agent >/dev/null 2>&1; then
+      snap refresh amazon-ssm-agent || true
+    else
+      snap install amazon-ssm-agent --classic
+    fi
+    systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+    systemctl restart snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+    set -euo pipefail
+    apt-get install -y postgresql-client unzip
 
     # AWS CLI v2 — used by deploy script for ECR login
     curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
@@ -59,14 +73,6 @@ resource "aws_instance" "backend_app" {
 
     systemctl enable docker
     systemctl start docker
-
-    # SSM agent — required for GitHub Actions deploy (aws ssm send-command)
-    mkdir -p /tmp/ssm
-    curl -fsSL "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb" \
-      -o /tmp/ssm/amazon-ssm-agent.deb
-    dpkg -i /tmp/ssm/amazon-ssm-agent.deb
-    systemctl enable amazon-ssm-agent
-    systemctl start amazon-ssm-agent
 
     mkdir -p /opt/app
   EOF
